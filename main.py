@@ -1,6 +1,4 @@
 import T_Display
-import math
-
 
 # Variáveis Globais
 tft = T_Display.TFT()  # Instancia um objeto da classe TFT
@@ -9,8 +7,44 @@ escala_vertical = [1, 2, 5, 10]  # escala da amplitude, em volts
 fator = 1/29.3  # Fator do divisor resistivo
 width = 240
 height = 135
-index_vertical = 0  # posição default escala vertical
-index_horizontal = 0  # posição default escala horizontal
+index_vertical = 1  # posição default escala vertical
+index_horizontal = 2  # posição default escala horizontal
+
+
+def normaliza_angulo(x):
+    while x > 3.1416:
+        x -= 2 * 3.1416
+    while x < -3.1416:
+        x += 2 * 3.1416
+    return x
+
+
+def fatorial(n):
+    resultado = 1
+    for i in range(1, n + 1):
+        resultado *= i
+    return resultado
+
+
+def seno(x, termos=10):
+    if x < 0:
+        return -seno(-x, termos)  # Usa a propriedade de função ímpar
+
+    resultado = 0
+    for n in range(termos):
+        termo = ((-1) ** n) * (x ** (2 * n + 1)) / fatorial(2 * n + 1)
+        resultado += termo
+    return resultado
+
+
+def cosseno(x, termos=10):
+    x = abs(x)  # Usa a propriedade de função par
+
+    resultado = 0
+    for n in range(termos):
+        termo = ((-1) ** n) * (x ** (2 * n)) / fatorial(2 * n)
+        resultado += termo
+    return resultado
 
 
 def readDisplay(index_vertical, index_horizontal):
@@ -29,7 +63,7 @@ def readDisplay(index_vertical, index_horizontal):
         pontosVolt[n] = V
 
         # Calcula a posição base do pixel ao centro
-        pixel_centro = (height - 16) / 2
+        pixel_centro = ((height + 16) / 2)
 
         # Calcula o deslocamento do pixel baseado em V e na escala vertical
         escala = (height - 16) / (6 * escala_vertical[index_vertical])
@@ -39,7 +73,7 @@ def readDisplay(index_vertical, index_horizontal):
         pixel = pixel_centro + deslocamento
 
         # Garante que o pixel permanece dentro dos limites do display
-        pixel = max(0, min(pixel, height - 16))
+        pixel = max(16, min(pixel, height))
 
         x.append(n)
         y.append(round(pixel))
@@ -54,21 +88,21 @@ def readDisplay(index_vertical, index_horizontal):
 
     # reiniciar display
     tft.display_set(tft.BLACK, 0, 0, width, height)  # Apaga display
-    tft.display_write_grid(0, 0, width, height-16, 10, 6,
+    tft.display_write_grid(0, 16, width, height-16, 10, 6,
                            tft.GREY2, tft.GREY1)  # Desenha grelha
-    tft.set_wifi_icon(width-16, height-16)  # Adiciona wifi icon
+    tft.set_wifi_icon(width - 16, 0)  # Adiciona wifi icon
     # escrever a escala no topo
     tft.display_write_str(tft.Arial16, "%d ms/div" %
-                          escala_horizontal[index_horizontal], 0, height-16)
+                          escala_horizontal[index_horizontal], 90, 0)
     tft.display_write_str(tft.Arial16, "%d V/div" %
-                          escala_vertical[index_vertical], 45+35, height-16)
+                          escala_vertical[index_vertical], 0, 0)
     # imprimir a forma de onda
     tft.display_nline(tft.YELLOW, x, y)
     # Cálculo do valor eficaz (Vrms)
     for i in range(len(pontosVolt)):
         Vrms += pontosVolt[i] ** 2
 
-    Vrms = math.sqrt(Vrms / len(pontosVolt))
+    Vrms = (Vrms / len(pontosVolt))**0.5
 
     # Média dos valores medidos
     Vmed /= len(pontosVolt)
@@ -80,12 +114,12 @@ def compute_dft(signal):
     N = len(signal)
     X = [0] * (N // 2 + 1)  # Apenas metade dos pontos são necessários
     for k in range(N // 2 + 1):
-        real = sum(signal[n] * math.cos(-2 * math.pi * k * n / N)
+        real = sum(signal[n] * cosseno(normaliza_angulo(-2 * 3.1416 * k * n / N))
                    for n in range(N))
-        imag = sum(signal[n] * math.sin(-2 * math.pi * k * n / N)
+        imag = sum(signal[n] * seno(normaliza_angulo(-2 * 3.1416 * k * n / N))
                    for n in range(N))
         X[k] = (2 if 0 < k < N // 2 else 1) * \
-            math.sqrt(real**2 + imag**2) / N
+            ((real**2 + imag**2)**0.5) / N
     return X
 
 
@@ -95,10 +129,6 @@ def display_dft(spectrum):
     T = escala_horizontal[index_horizontal] * \
         10 / 1000  # Tempo total em segundos
     fs = N / T
-    pixel_centro = (height - 16) / 2
-    max_magnitude = max(spectrum) if max(
-        spectrum) > 0 else 1  # Evita divisão por zero
-    # Ajusta escala com base no valor máximo
     escala_vertical = (height - 16) / 6
     x = []
     y = []
@@ -111,43 +141,70 @@ def display_dft(spectrum):
 
     for i in range(len(spectrum) - 1):  # Ignorar o último ponto
         deslocamento = escala_vertical * spectrum[i]
-        pixel = max(0, min(0 + deslocamento, height - 16))
+        pixel = max(16, min(16 + deslocamento, height - 16))
         x.extend([2 * i, 2 * i + 1])  # Duplicação dos pontos
         y.extend([round(pixel), round(pixel)])
 
     tft.display_set(tft.BLACK, 0, 0, width, height)  # Apaga display
-    tft.display_write_grid(0, 0, width, height - 16,
-                           10, 6, tft.GREY1, tft.GREY2)
+    tft.display_write_grid(0, 16, width, height - 16,
+                           10, 6, tft.BLACK, tft.GREY1)
+    tft.set_wifi_icon(width - 16, 0)
+    tft.display_write_str(tft.Arial16, "%d Hz/div" % f_div, 0, 0)
+    tft.display_write_str(tft.Arial16, "1 V/div", 90, 0)
+    tft.display_nline(tft.MAGENTA, x, y)
 
-    tft.set_wifi_icon(width - 16, height - 16)
-    tft.display_write_str(tft.Arial16, "%d Hz/div" % f_div, 0, height - 16)
-    tft.display_write_str(tft.Arial16, "1 V/div", 45+35, height-16)
-    tft.display_nline(tft.YELLOW, x, y)
+
+def apply_bandpass_filter(signal, fs=4800, f0=100, bw=50):
+
+    dt = 1 / fs
+    w0 = 2 * 3.141592653589793 * f0  # Frequência angular central
+    wb = 2 * 3.141592653589793 * bw   # Largura de banda angular
+
+    # Fator de transformação bilinear
+    T = 2 / dt
+    w0_d = (2 / dt) * (w0 / (T + w0))  # Conversão bilinear
+
+    # Coeficientes do filtro IIR (passa-banda)
+    alpha = w0_d / (wb + w0_d)
+
+    y = [0] * len(signal)  # Inicializa o sinal filtrado
+
+    for i in range(1, len(signal)):
+        y[i] = alpha * (signal[i] - signal[i - 1]) + (1 - alpha) * y[i - 1]
+
+    escalaV = escala_vertical[autoescala(y)]
+
+    meio_tela = (height + 16) / 2  # Centro da tela
+    escala_pixel = ((height - 16)/2) / (3 * escalaV)  # Pixels por V/div
+
+    pontosY = [round(meio_tela + (s * escala_pixel))
+               for s in y]
+
+    # Atualiza o display
+    tft.display_set(tft.BLACK, 0, 0, width, height)  # Apaga display
+    tft.display_write_grid(
+        0, 16, width, height-16, 10, 6, tft.GREY2, tft.GREY1)  # Desenha grelha
+    tft.set_wifi_icon(width - 16, 0)  # Adiciona ícone Wi-Fi
+    # Escreve escala horizontal
+    tft.display_write_str(tft.Arial16, "%d ms/div" %
+                          escala_horizontal[index_horizontal], 90, 0)
+    tft.display_write_str(tft.Arial16, "%d V/div" %
+                          escalaV, 0, 0)  # Escreve escala vertical
+
+    # Plota o sinal no display
+    tft.display_nline(tft.YELLOW, list(range(width)), pontosY)
+
+    return y
 
 
-def apply_bandpass_filter(signal):
-    # Parâmetros do filtro Chebyshev de 1ª ordem
-    f0 = 100  # Hz (frequência central)
-    LB = 50  # Hz (largura de banda)
-    fs = 4800  # Hz (frequência de amostragem)
-    w0 = 2 * math.pi * f0 / fs
-    bw = 2 * math.pi * LB / fs
+def autoescala(signal):
+    max_value = max(abs(min(signal)), abs(max(signal)))
 
-    # Coeficientes do filtro bilinear
-    alpha = math.tan(bw / 2)
-    a0 = 1 + alpha
-    a1 = -2 * math.cos(w0) / a0
-    a2 = (1 - alpha) / a0
-    b0 = alpha / a0
-    b1 = 0
-    b2 = -alpha / a0
+    for i, escala in enumerate(escala_vertical):
+        if max_value <= 3 * escala:
+            return i
 
-    # Aplicação do filtro IIR
-    filtered_signal = [0] * len(signal)
-    for n in range(2, len(signal)):
-        filtered_signal[n] = b0 * signal[n] + b1 * signal[n-1] + b2 * \
-            signal[n-2] - a1 * filtered_signal[n-1] - a2 * filtered_signal[n-2]
-    return filtered_signal
+    return len(escala_vertical) - 1   # Retorna a escala máxima se necessário
 
 
 while tft.working():
@@ -171,13 +228,6 @@ while tft.working():
             Vmax, Vmin, Vmed, Vrms, pontosVolt = readDisplay(
                 index_vertical, index_horizontal)
             filtered_signal = apply_bandpass_filter(pontosVolt)
-            tft.display_set(tft.BLACK, 0, 0, width, height)  # Apaga display
-            tft.display_write_grid(0, 0, width, height-16,
-                                   10, 6, tft.GREY1, tft.GREY2)
-            tft.set_wifi_icon(width-16, height-16)
-            tft.display_write_str(tft.Arial16, "5ms/div", 0, height-16)
-            tft.display_nline(tft.YELLOW, list(range(width)), [
-                round((height-16)/2 + s) for s in filtered_signal])
 
         if Button == 21:
             index_vertical += 1
