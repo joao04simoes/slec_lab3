@@ -7,10 +7,12 @@ width = 160
 height = 134
 
 # Função para realizar amostras e médias
+
+
 def media_amostras(num_amostras):
     # Apaga parte direita do display excepto icon WiFi
     tft.display_set(tft.BLACK, width, 0, 240-width, height-16)
-    soma=0
+    soma = 0
     for n in range(num_amostras):
         pontos_adc = tft.read_adc(100, 50)   # 10 amostras num total de 50ms
         for j in range(100):
@@ -18,15 +20,18 @@ def media_amostras(num_amostras):
     media = soma / (100*num_amostras)
 
     # Escreve valores no display
-    tft.display_write_str(tft.Arial16, "media", width +5, 90)
-    tft.display_write_str(tft.Arial16, "%d" % num_amostras, width +5, 70)
-    tft.display_write_str(tft.Arial16, "amostras", width +5, 50)
-    tft.display_write_str(tft.Arial16, "%.2f" % media, width +5, 30)
+    tft.display_write_str(tft.Arial16, "media", width + 5, 90)
+    tft.display_write_str(tft.Arial16, "%d" % num_amostras, width + 5, 70)
+    tft.display_write_str(tft.Arial16, "amostras", width + 5, 50)
+    tft.display_write_str(tft.Arial16, "%.2f" % media, width + 5, 30)
+
 
 # Programa principal (main)
-tft = T_Display.TFT()                              # Instancia um objeto da classe TFT
+# Instancia um objeto da classe TFT
+tft = T_Display.TFT()
 tft.display_set(tft.BLACK, 0, 0, 240, 135)         # Apaga display
-tft.display_write_grid(0, 0, 160, 135, 8, 8, True) # Desenha grelha (c/ linhas centrais)
+# Desenha grelha (c/ linhas centrais)
+tft.display_write_grid(0, 0, 160, 135, 8, 8, True)
 
 frequencia = 50
 amplitude = 3
@@ -46,13 +51,15 @@ for n in range(width):
     x.append(n)
     y.append(round(pixel))
 tft.display_nline(tft.YELLOW, x, y)
-tft.set_wifi_icon(240-16,135-16)
+tft.set_wifi_icon(240-16, 135-16)
 
 while tft.working():                                    # Ciclo principal do programa
-    but=tft.readButton()
-    if but!=tft.NOTHING:
-        print("Button pressed:",but)
-        if but==11:                                     # Button 1 click (10 amostras)
+    but = tft.readButton()
+    if but != tft.NOTHING:
+        print("Button pressed:", but)
+        # Button 1 click (10 amostras)
+        if but == 11:
             media_amostras(10)
-        if but==21:                                     # Button 2 click (100 amostras)
+        # Button 2 click (100 amostras)
+        if but == 21:
             media_amostras(100)
